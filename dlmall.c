@@ -1,3 +1,12 @@
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/mman.h>
+
+
 #define TRUE 1
 #define FALSE 0
 #define HEAD ( sizeof ( struct head ) )
@@ -19,19 +28,19 @@ struct head {
 
 
 struct head *after ( struct head *block ) {
-    return ( struct head* ) ((char*) block + head.size + HEAD) ;
+    return ( struct head* ) ((char*) block + block->size + HEAD) ;
 }
 
 struct head *before ( struct head *block ) {
-    return ( struct head* ) ((char*) block - head.bsize - HEAD ;
+    return ( struct head* ) ((char*) block - block->bsize - HEAD) ;
 }
 
 // function does not insert the new splt block => should be done explicilty afterwards
 struct head *split ( struct head *block , int size ) {
-    int rsize = (block->size-size-HEAD;
+    int rsize = (block->size-size-HEAD);
     block->size = rsize;
 
-    struct head *splt = after(block)
+    struct head *splt = after(block);
     splt->bsize = rsize;
     splt->bfree = block->free;
     splt->size = size;
@@ -44,9 +53,9 @@ struct head *split ( struct head *block , int size ) {
 }
 
 struct head *arena = NULL;
-struct head *new ( ) {
+struct head *new () {
     if ( arena != NULL) {
-        printf ( "one arena already allocated \n" ) ;
+        printf ("one arena already allocated \n");
         return NULL;
     }
 
@@ -54,7 +63,7 @@ struct head *new ( ) {
     // using mmap, but could have used sbrk
     struct head *new = mmap(NULL, ARENA, 
                             PROT_READ | PROT_WRITE,
-                            MAP_PRIVATE | MAP_ANONYMOUS, = 1, 0 ) ;
+                            MAP_PRIVATE | MAP_ANONYMOUS, - 1, 0 ) ;
     
     if ( new == MAP_FAILED) {
         printf ( "mmap failed : error %d\n" , errno ) ;
@@ -67,12 +76,12 @@ struct head *new ( ) {
     new->bsize = 0;
     new->free= TRUE;
     new->size = size;
-    struct head * sentinel = after (new);
+    struct head *sentinel = after (new);
     /*  only touch the status fields */
-    sentiel->bfree = TRUE;
-    sentiel->bsize = size;
-    sentiel->free = FALSE;
-    sentiel->size = 0;
+    sentinel->bfree = TRUE;
+    sentinel->bsize = size;
+    sentinel->free = FALSE;
+    sentinel->size = 0;
 
     /* this is the only arena we have */
     arena = ( struct head*) new ;
@@ -100,22 +109,11 @@ void detach ( struct head* block ) {
 void insert ( struct head *block ) {
     block->next = flist;
     block->prev = NULL;
-    if ( flist!= NULL)
-        firstBlock = flist;
+    if ( flist!= NULL){
+        struct head* firstBlock = flist;
         firstBlock->prev = block;
-    flist = block;
-}
-
-void *dalloc ( size_t request ) {
-    if ( request <= 0 ){
-        return NULL;
     }
-    int size = adjust ( request ) ;
-    struct head *taken = find ( size ) ;
-    if ( taken == NULL)
-        return NULL;
-    else
-        return taken;
+    flist = block;
 }
 
 struct head *find (int size) {
@@ -129,7 +127,7 @@ struct head *find (int size) {
     while (currBlock != NULL) {
         if (currBlock->size >size){
             if (currBlock->size>2*8+2*HEAD){
-                struct head *splt = split(block,size);
+                struct head *splt = split(currBlock,size);
                 insert(splt);
             }
             detach(currBlock);
@@ -139,19 +137,29 @@ struct head *find (int size) {
             currBlock = currBlock->next;
         }
     }
-    else{
-        return NULL;
-    }
+    return NULL;
 }
 
 int adjust(int request){
-    int quotient = request / ALIGN:
+    int quotient = request / ALIGN;
     int remainder = request % ALIGN;
     if (remainder != 0)
         remainder++;
     if (quotient % 2 != 0) // even multiple of ALIGN, not sure with this is necessary
         quotient++;
     return remainder*quotient;
+}
+
+void *dalloc ( size_t request ) {
+    if ( request <= 0 ){
+        return NULL;
+    }
+    int size = adjust (request) ;
+    struct head *taken = find ( size ) ;
+    if ( taken == NULL)
+        return NULL;
+    else
+        return taken;
 }
 
 void dfree ( void *memory ) {
