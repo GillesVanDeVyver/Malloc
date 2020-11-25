@@ -82,6 +82,7 @@ struct head *new () {
     sentinel->bsize = size;
     sentinel->free = FALSE;
     sentinel->size = 0;
+    sentinel->next = NULL;
 
     /* this is the only arena we have */
     arena = ( struct head*) new ;
@@ -92,6 +93,8 @@ struct head *new () {
 struct head *flist ;
 void detach ( struct head* block ) {
     block->free=FALSE;
+    struct head *aft = after(block);
+    aft->bfree =FALSE;
     if ( block->next != NULL){
         struct head *nextBlock = block->next;
         nextBlock->prev = block->prev;
@@ -104,11 +107,15 @@ void detach ( struct head* block ) {
     else{
         flist = block->next;
     }
+    block->next=NULL;
+    block->prev=NULL;
+    block->bfree=FALSE;
 }
 
 void insert ( struct head *block ) {
     block->next = flist;
     block->prev = NULL;
+    block->bfree = FALSE;
     if ( flist!= NULL){
         struct head* firstBlock = flist;
         firstBlock->prev = block;
@@ -126,8 +133,8 @@ struct head *find (int size) {
     struct head *currBlock = flist;
     while (currBlock != NULL) {
         if (currBlock->size >size){
-            if (currBlock->size>2*8+2*HEAD){
-                struct head *splt = split(currBlock,size);
+            if (currBlock->size-size>size+HEAD+8){
+                struct head *splt = split(currBlock,currBlock->size-size-HEAD);
                 insert(splt);
             }
             detach(currBlock);
@@ -144,10 +151,11 @@ int adjust(int request){
     int quotient = request / ALIGN;
     int remainder = request % ALIGN;
     if (remainder != 0)
-        remainder++;
+        quotient++;
     if (quotient % 2 != 0) // even multiple of ALIGN, not sure with this is necessary
         quotient++;
-    return remainder*quotient;
+    printf("adjusted request %d\n",(ALIGN*quotient));
+    return ALIGN*quotient;
 }
 
 void *dalloc ( size_t request ) {
@@ -159,15 +167,85 @@ void *dalloc ( size_t request ) {
     if ( taken == NULL)
         return NULL;
     else
-        return taken;
+        return (char*)taken+HEAD;
 }
 
 void dfree ( void *memory ) {
     if (memory != NULL) {
-        struct head *block = memory;
+        struct head *block = ( struct head* )((char*) memory-HEAD);
         struct head *aft = after(block);
         block->free = TRUE;
         aft->bfree = TRUE;
+        insert(block);
     }
 return ;
 }
+
+void sanity(){
+    printf("___START SANITY CHECK___\n");
+    if (flist == NULL) { 
+        flist = new();
+        if (flist==NULL){
+            printf("flist==NULL\n");
+            abort();
+        }
+    }
+
+    printf("flist: %p\n",flist);
+
+    struct head *currBlock = arena;
+    int sentinelReached = FALSE;
+    while (!sentinelReached){
+        if (currBlock->size==0){
+            sentinelReached = TRUE;
+            printf("sentinel block\n");
+        }
+
+        printf("currBlock: %p\n",(char*)currBlock);
+        printf("currBlock->size: %d\n",currBlock->size);
+        printf("currBlock->bfree: %d\n",currBlock->bfree);
+        printf("currBlock->free: %d\n",currBlock->free);
+        printf("currBlock->next: %p\n",currBlock->next);
+        printf("currBlock->prev: %p\n",currBlock->prev);
+        struct head *afterBlock = after(currBlock);
+
+
+
+        if (sentinelReached==FALSE && afterBlock->bsize!=currBlock->size){
+            printf("afterBlock->bsize != currBlock->size\n");
+            printf("afterBlock->bsize: %d\n",afterBlock->bsize);
+            printf("currBlock->size: %d\n",currBlock->size);
+            abort();
+        }
+
+        if (sentinelReached==FALSE && afterBlock->bfree!=currBlock->free){
+            printf("afterBlock->bfree != currBlock->free\n");
+            printf("afterBlock->bfree: %d\n",afterBlock->bfree);
+            printf("currBlock->free: %d\n",currBlock->free);
+            abort();
+        }
+
+        currBlock = afterBlock;
+    }
+    printf("___END SANITY CHECK___\n");
+}
+
+void main(){ //for testing
+    sanity();
+    int *ptr;
+    ptr = (int*) dalloc(sizeof(int));
+    *ptr = 7;
+    printf("Stored %d at %p\n",*ptr, ptr);
+    sanity();
+    int *ptr2;
+    ptr2 = (int*) dalloc(sizeof(int));
+    *ptr2=9;
+    printf("Stored %d at %p\n",*ptr2, ptr2);
+    sanity();
+    dfree(ptr2);
+    sanity();
+    dfree(ptr);
+    sanity();
+}
+
+

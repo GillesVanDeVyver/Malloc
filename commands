@@ -1,0 +1,9 @@
+gcc -c dlmall.c
+gcc -o test dlmall.o test.c -lm
+./test
+
+
+
+
+gcc -o dlmall dlmall.c
+./dlmall
