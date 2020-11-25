@@ -11,7 +11,7 @@
 #define FALSE 0
 #define HEAD ( sizeof ( struct head ) )
 #define MIN( size ) (((size)>(8))?( size) : ( 8 ) )
-#define MAGIC(memory) ( ( struct head* )memory = 1)
+#define MAGIC(memory) ( ( struct head* )memory - 1)
 #define HIDE( block ) ( void* ) ( ( struct head* ) block + 1)
 #define ALIGN 8
 #define ARENA (64 * 1024)
@@ -109,7 +109,6 @@ void detach ( struct head* block ) {
     }
     block->next=NULL;
     block->prev=NULL;
-    block->bfree=FALSE;
 }
 
 void insert ( struct head *block ) {
@@ -148,8 +147,9 @@ struct head *find (int size) {
 }
 
 int adjust(int request){
-    int quotient = request / ALIGN;
-    int remainder = request % ALIGN;
+    int minRequest = MIN(request);
+    int quotient = minRequest / ALIGN;
+    int remainder = minRequest % ALIGN;
     if (remainder != 0)
         quotient++;
     if (quotient % 2 != 0) // even multiple of ALIGN, not sure with this is necessary
@@ -167,13 +167,13 @@ void *dalloc ( size_t request ) {
     if ( taken == NULL)
         return NULL;
     else
-        return (char*)taken+HEAD;
+        return HIDE(taken);
 }
 
 void dfree ( void *memory ) {
     if (memory != NULL) {
-        struct head *block = ( struct head* )((char*) memory-HEAD);
-        struct head *aft = after(block);
+        struct head *block = MAGIC(memory);
+        struct head *aft = after(block); //will never be null bcs of sentinel
         block->free = TRUE;
         aft->bfree = TRUE;
         insert(block);
@@ -207,6 +207,10 @@ void sanity(){
         printf("currBlock->free: %d\n",currBlock->free);
         printf("currBlock->next: %p\n",currBlock->next);
         printf("currBlock->prev: %p\n",currBlock->prev);
+        if (!sentinelReached){
+            int *dataPtr = HIDE(currBlock);
+            printf("Value:  %x\n", *dataPtr);
+        }
         struct head *afterBlock = after(currBlock);
 
 
