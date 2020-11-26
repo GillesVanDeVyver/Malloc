@@ -151,8 +151,6 @@ void checkFreeList(){
     while (currBlock != NULL){
         struct head *next = currBlock->next;
         if (next !=NULL){
-            if (currBlock!=next->prev)
-                printflist();
             assert(currBlock==next->prev);
         }
         assert(currBlock->free==TRUE);
@@ -249,6 +247,18 @@ int printfBlocksSize(){
     }
 }
 
+int printfAvgBlocksSize(){
+    struct head *currBlock = flist;
+    int sizeCount = 0;
+    int count = 0;
+    while (currBlock != NULL){
+        sizeCount+=currBlock->size;
+        count++;
+        currBlock = currBlock->next;
+    }
+    return sizeCount/count;
+}
+
 void detach ( struct head* block ) {
     block->free=FALSE;
     struct head *aft = after(block);
@@ -311,7 +321,7 @@ int adjust(int request){
         quotient++;
     if (quotient % 2 != 0) // even multiple of ALIGN, not sure with this is necessary
         quotient++;
-    printf("adjusted request %d\n",(ALIGN*quotient));
+    //printf("adjusted request %d\n",(ALIGN*quotient));
     return ALIGN*quotient;
 }
 
@@ -330,7 +340,7 @@ void *dalloc ( size_t request ) {
 void dfree ( void *memory ) {
     if (memory != NULL) {
         struct head *block = MAGIC(memory);
-        printf("MAGIC(memory) %p\n",MAGIC(memory));
+     //   printf("MAGIC(memory) %p\n",MAGIC(memory));
 
         struct head *aft = after(block); //will never be null bcs of sentinel
         block->free = TRUE;
