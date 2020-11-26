@@ -5,12 +5,14 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/mman.h>
+#include <assert.h>
 
 
+#define MINSIZE 8
 #define TRUE 1
 #define FALSE 0
 #define HEAD ( sizeof ( struct head ) )
-#define MIN( size ) (((size)>(8))?( size) : ( 8 ) )
+#define MIN( size ) (((size)>(MINSIZE))?( size) : ( MINSIZE ) )
 #define MAGIC(memory) ( ( struct head* )memory - 1)
 #define HIDE( block ) ( void* ) ( ( struct head* ) block + 1)
 #define ALIGN 8
@@ -91,6 +93,162 @@ struct head *new () {
 
 
 struct head *flist ;
+
+
+int lenghtFlist(){
+    struct head *currBlock = flist;
+    int count = 0;
+    while (currBlock != NULL){
+        count++;
+        currBlock = currBlock->next;
+    }
+    return count;
+}
+
+
+int printflist(){
+    struct head *currBlock = flist;
+    printf("printing the free list\n");
+    //printf("lenghtFlist %d\n",lenghtFlist());
+    while (currBlock != NULL){
+        sleep(1);
+        printf("currBlock: %p\n",(char*)currBlock);
+        printf("currBlock->size: %d\n",currBlock->size);
+        printf("currBlock->bfree: %d\n",currBlock->bfree);
+        printf("currBlock->free: %d\n",currBlock->free);
+        printf("currBlock->next: %p\n",currBlock->next);
+        printf("currBlock->prev: %p\n",currBlock->prev);
+        currBlock = currBlock->next;
+    }
+}
+
+int printflisttemp(){
+    struct head *currBlock = flist;
+    printf("printing the free list\n");
+    //printf("lenghtFlist %d\n",lenghtFlist());
+    while (currBlock != NULL){
+        printf("currBlock: %p\n",(char*)currBlock);
+        printf("currBlock->size: %d\n",currBlock->size);
+        printf("currBlock->bfree: %d\n",currBlock->bfree);
+        printf("currBlock->free: %d\n",currBlock->free);
+        printf("currBlock->next: %p\n",currBlock->next);
+        printf("currBlock->prev: %p\n",currBlock->prev);
+        currBlock = currBlock->next;
+    }
+}
+
+
+
+
+int sizeOK(int size){
+    if ((size % ALIGN != 0) || (size < MINSIZE) )
+        return 0;
+    return 1;
+}
+
+void checkFreeList(){
+    struct head *currBlock = flist;
+    while (currBlock != NULL){
+        struct head *next = currBlock->next;
+        if (next !=NULL){
+            if (currBlock!=next->prev)
+                printflist();
+            assert(currBlock==next->prev);
+        }
+        assert(currBlock->free==TRUE);
+        assert(sizeOK(currBlock->size));
+        currBlock = next;
+    }
+}
+
+
+void sanity(int verbose){
+    if (verbose==1 || verbose == 2){
+        printf("___START SANITY CHECK___\n");
+    }
+    if (flist == NULL) { 
+        flist = new();
+        assert(flist!=NULL);
+        // if (flist==NULL){
+        //     printf("flist==NULL\n");
+        //     abort();
+        // }
+    }
+
+    if (verbose==1){
+        printf("flist: %p\n",flist);
+        printf("lenghtFlist %d\n",lenghtFlist());
+    }
+    if (verbose==2){
+        printflist();
+    }
+    struct head *currBlock = arena;
+    int sentinelReached = FALSE;
+    while (!sentinelReached){
+        if (currBlock->size==0){
+            sentinelReached = TRUE;
+            if (verbose==1){
+                printf("sentinel block\n");
+            }
+            assert(currBlock->size ==0);
+        }
+        if (verbose==1){
+            printf("currBlock: %p\n",(char*)currBlock);
+            printf("currBlock->size: %d\n",currBlock->size);
+            printf("currBlock->bfree: %d\n",currBlock->bfree);
+            printf("currBlock->free: %d\n",currBlock->free);
+            printf("currBlock->next: %p\n",currBlock->next);
+            printf("currBlock->prev: %p\n",currBlock->prev);
+        }
+        if (!sentinelReached){
+            int *dataPtr = HIDE(currBlock);
+            if (verbose==1){
+                printf("Value:  %x\n", *dataPtr);
+            }
+        }
+        struct head *afterBlock = after(currBlock);
+
+
+        assert(!(sentinelReached==FALSE && afterBlock->bsize!=currBlock->size));
+
+        // if (sentinelReached==FALSE && afterBlock->bsize!=currBlock->size){
+        //     printf("afterBlock->bsize != currBlock->size\n");
+        //     printf("afterBlock->bsize: %d\n",afterBlock->bsize);
+        //     printf("currBlock->size: %d\n",currBlock->size);
+        //     abort();
+        // }
+
+        //assert(!(sentinelReached==FALSE && afterBlock->bfree!=currBlock->free));
+
+        if (sentinelReached==FALSE && afterBlock->bfree!=currBlock->free){
+            printf("currBlock: %p\n",(char*)currBlock);
+            printf("afterBlock: %p\n",(char*)afterBlock);
+            printf("afterBlock->bfree != currBlock->free\n");
+            printf("afterBlock->bfree: %d\n",afterBlock->bfree);
+            printf("currBlock->free: %d\n",currBlock->free);
+            abort();
+        }
+
+        currBlock = afterBlock;
+    }
+    
+    checkFreeList();
+    printflisttemp();
+    if (verbose==1|| verbose == 2){
+        printf("___END SANITY CHECK___\n");
+    }
+}
+
+int printfBlocksSize(){
+    struct head *currBlock = flist;
+    printf("printing the free blocks sizes\n");
+    printf("lenghtFlist %d\n",lenghtFlist());
+    while (currBlock != NULL){
+        printf("currBlock->size: %d\n",currBlock->size);
+        currBlock = currBlock->next;
+    }
+}
+
 void detach ( struct head* block ) {
     block->free=FALSE;
     struct head *aft = after(block);
@@ -114,7 +272,6 @@ void detach ( struct head* block ) {
 void insert ( struct head *block ) {
     block->next = flist;
     block->prev = NULL;
-    block->bfree = FALSE;
     if ( flist!= NULL){
         struct head* firstBlock = flist;
         firstBlock->prev = block;
@@ -173,83 +330,14 @@ void *dalloc ( size_t request ) {
 void dfree ( void *memory ) {
     if (memory != NULL) {
         struct head *block = MAGIC(memory);
+        printf("MAGIC(memory) %p\n",MAGIC(memory));
+
         struct head *aft = after(block); //will never be null bcs of sentinel
         block->free = TRUE;
         aft->bfree = TRUE;
         insert(block);
     }
 return ;
-}
-
-void sanity(){
-    printf("___START SANITY CHECK___\n");
-    if (flist == NULL) { 
-        flist = new();
-        if (flist==NULL){
-            printf("flist==NULL\n");
-            abort();
-        }
-    }
-
-    printf("flist: %p\n",flist);
-
-    struct head *currBlock = arena;
-    int sentinelReached = FALSE;
-    while (!sentinelReached){
-        if (currBlock->size==0){
-            sentinelReached = TRUE;
-            printf("sentinel block\n");
-        }
-
-        printf("currBlock: %p\n",(char*)currBlock);
-        printf("currBlock->size: %d\n",currBlock->size);
-        printf("currBlock->bfree: %d\n",currBlock->bfree);
-        printf("currBlock->free: %d\n",currBlock->free);
-        printf("currBlock->next: %p\n",currBlock->next);
-        printf("currBlock->prev: %p\n",currBlock->prev);
-        if (!sentinelReached){
-            int *dataPtr = HIDE(currBlock);
-            printf("Value:  %x\n", *dataPtr);
-        }
-        struct head *afterBlock = after(currBlock);
-
-
-
-        if (sentinelReached==FALSE && afterBlock->bsize!=currBlock->size){
-            printf("afterBlock->bsize != currBlock->size\n");
-            printf("afterBlock->bsize: %d\n",afterBlock->bsize);
-            printf("currBlock->size: %d\n",currBlock->size);
-            abort();
-        }
-
-        if (sentinelReached==FALSE && afterBlock->bfree!=currBlock->free){
-            printf("afterBlock->bfree != currBlock->free\n");
-            printf("afterBlock->bfree: %d\n",afterBlock->bfree);
-            printf("currBlock->free: %d\n",currBlock->free);
-            abort();
-        }
-
-        currBlock = afterBlock;
-    }
-    printf("___END SANITY CHECK___\n");
-}
-
-void main(){ //for testing
-    sanity();
-    int *ptr;
-    ptr = (int*) dalloc(sizeof(int));
-    *ptr = 7;
-    printf("Stored %d at %p\n",*ptr, ptr);
-    sanity();
-    int *ptr2;
-    ptr2 = (int*) dalloc(sizeof(int));
-    *ptr2=9;
-    printf("Stored %d at %p\n",*ptr2, ptr2);
-    sanity();
-    dfree(ptr2);
-    sanity();
-    dfree(ptr);
-    sanity();
 }
 
 

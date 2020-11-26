@@ -1,2 +1,5 @@
-struct head *dalloc ( size_t request );
+void *dalloc ( size_t request );
 void dfree ( void *memory );
+int lenghtFlist();
+void sanity();
+int printfBlocksSize();

@@ -1,9 +1,32 @@
+// testing
 gcc -c dlmall.c
 gcc -o test dlmall.o test.c -lm
 ./test
 
 
 
+
+
+
+
+// bench
+gcc -c dlmall.c
+gcc -c rand.c
+gcc -o bench dlmall.o rand.o bench.c -lm
+./bench
+
+
+
+
+
+
+
+
+
+
+
+
+// old
 
 gcc -o dlmall dlmall.c
 ./dlmall

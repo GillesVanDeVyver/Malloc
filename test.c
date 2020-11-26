@@ -8,14 +8,25 @@
 #include "dlmall.h"
 
 
-void main(){
-    int *ptr = 0;
-    ptr = (int*) malloc(1 * sizeof(int));
-    printf("%p: %d\n",ptr, *ptr);
-    free(ptr);
-    *ptr = 0;
-    ptr = (int*) dalloc(1 * sizeof(int));
-    printf("%p: %d\n",ptr, *ptr);
-    dfree(ptr);
-}
 
+
+void main(){ //for testing
+    sanity(0);
+    int *ptr;
+    ptr = (int*) dalloc(sizeof(int));
+    *ptr = 7;
+    printf("Stored %d at %p\n",*ptr, ptr);
+    sanity(0);
+    int *ptr2;
+    ptr2 = (int*) dalloc(sizeof(int));
+    *ptr2=9;
+    printf("Stored %d at %p\n",*ptr2, ptr2);
+    sanity(0);
+    dfree(ptr2);
+    printf("Freed %p\n",ptr2);
+    sanity(0);
+    dfree(ptr);
+    printf("Freed %p\n",ptr);
+    sanity(2);
+    printf("lenghtFlist %d\n",lenghtFlist());
+}
