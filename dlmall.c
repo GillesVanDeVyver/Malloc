@@ -111,7 +111,7 @@ int printflist(){
     printf("printing the free list\n");
     //printf("lenghtFlist %d\n",lenghtFlist());
     while (currBlock != NULL){
-        sleep(1);
+     //   sleep(1);
         printf("currBlock: %p\n",(char*)currBlock);
         printf("currBlock->size: %d\n",currBlock->size);
         printf("currBlock->bfree: %d\n",currBlock->bfree);
@@ -165,20 +165,17 @@ void sanity(int verbose){
         printf("___START SANITY CHECK___\n");
     }
     if (flist == NULL) { 
-        flist = new();
-        assert(flist!=NULL);
-        // if (flist==NULL){
-        //     printf("flist==NULL\n");
-        //     abort();
-        // }
+        if (verbose==1 || verbose == 2)
+            printf("flist == NULL");
     }
-
-    if (verbose==1){
-        printf("flist: %p\n",flist);
-        printf("lenghtFlist %d\n",lenghtFlist());
-    }
-    if (verbose==2){
-        printflist();
+    else{
+        if (verbose==1){
+            printf("flist: %p\n",flist);
+            printf("lenghtFlist %d\n",lenghtFlist());
+        }
+        if (verbose==2){
+            printflist();
+        }
     }
     struct head *currBlock = arena;
     int sentinelReached = FALSE;
@@ -207,21 +204,21 @@ void sanity(int verbose){
         struct head *afterBlock = after(currBlock);
 
 
-        assert(!(sentinelReached==FALSE && afterBlock->bsize!=currBlock->size));
+        // assert(!(sentinelReached==FALSE && afterBlock->bsize!=currBlock->size));
 
-        // if (sentinelReached==FALSE && afterBlock->bsize!=currBlock->size){
-        //     printf("afterBlock->bsize != currBlock->size\n");
-        //     printf("afterBlock->bsize: %d\n",afterBlock->bsize);
-        //     printf("currBlock->size: %d\n",currBlock->size);
-        //     abort();
-        // }
+        if (sentinelReached==FALSE && afterBlock->bsize!=currBlock->size){
+            printf("afterBlock->bsize != currBlock->size\n");
+            printf("afterBlock->bsize: %d\n",afterBlock->bsize);
+            printf("currBlock->size: %d\n",currBlock->size);
+            abort();
+        }
 
         //assert(!(sentinelReached==FALSE && afterBlock->bfree!=currBlock->free));
 
         if (sentinelReached==FALSE && afterBlock->bfree!=currBlock->free){
+            printf("afterBlock->bfree != currBlock->free\n");
             printf("currBlock: %p\n",(char*)currBlock);
             printf("afterBlock: %p\n",(char*)afterBlock);
-            printf("afterBlock->bfree != currBlock->free\n");
             printf("afterBlock->bfree: %d\n",afterBlock->bfree);
             printf("currBlock->free: %d\n",currBlock->free);
             abort();
@@ -231,7 +228,7 @@ void sanity(int verbose){
     }
     
     checkFreeList();
-    printflisttemp();
+    //printflisttemp();
     if (verbose==1|| verbose == 2){
         printf("___END SANITY CHECK___\n");
     }
@@ -247,22 +244,23 @@ int printfBlocksSize(){
     }
 }
 
-int printfAvgBlocksSize(){
+int avgBlocksSize(){
     struct head *currBlock = flist;
     int sizeCount = 0;
     int count = 0;
+
     while (currBlock != NULL){
         sizeCount+=currBlock->size;
         count++;
         currBlock = currBlock->next;
     }
+    if (count == 0)
+        return 0;
     return sizeCount/count;
 }
 
 void detach ( struct head* block ) {
-    block->free=FALSE;
-    struct head *aft = after(block);
-    aft->bfree =FALSE;
+
     if ( block->next != NULL){
         struct head *nextBlock = block->next;
         nextBlock->prev = block->prev;
@@ -304,6 +302,9 @@ struct head *find (int size) {
                 insert(splt);
             }
             detach(currBlock);
+            currBlock->free=FALSE;
+            struct head *aft = after(currBlock);
+            aft->bfree =FALSE;
             return currBlock;
         }
         else{
@@ -337,15 +338,38 @@ void *dalloc ( size_t request ) {
         return HIDE(taken);
 }
 
+// Merge more than two blocks can't be the case: already merged at that time
+struct head *merge ( struct head *block ) {
+    struct head * aft = after ( block ) ;
+    if ( block->bfree ) {
+        struct head *bef = before ( block ) ;
+        detach(bef);
+        int mergedSize = block->size + bef->size + HEAD;
+        bef->size = mergedSize;
+        aft->bsize= mergedSize;
+        block = bef;
+    }
+    if ( aft->free ) { // after always exists bcs of sentinel
+        struct head * aft2 = after ( aft ) ;
+        detach(aft);
+        int mergedSize2 = block->size + aft->size + HEAD;
+        block->size = mergedSize2;
+        aft2->bsize=mergedSize2; // always exists bcs of sentinel
+    }
+    // printf("merged block %p",block);
+    return block ;
+}
+
+
 void dfree ( void *memory ) {
     if (memory != NULL) {
         struct head *block = MAGIC(memory);
-     //   printf("MAGIC(memory) %p\n",MAGIC(memory));
-
-        struct head *aft = after(block); //will never be null bcs of sentinel
-        block->free = TRUE;
+        struct head *mergedBlock = merge(block);
+        // struct head *mergedBlock = block;   //no merge
+        mergedBlock->free = TRUE;
+        struct head *aft = after(mergedBlock); //will never be null bcs of sentinel
         aft->bfree = TRUE;
-        insert(block);
+        insert(mergedBlock);
     }
 return ;
 }

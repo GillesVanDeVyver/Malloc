@@ -10,17 +10,18 @@
 #define BUFFER 10
 
 int main() {
+  srand(1);
   void *buffer[BUFFER];
   for(int i = 0; i < BUFFER; i++) {
     buffer[i] = NULL;
   }
+
+
   for(int j = 0; j < ROUNDS; j++) {
     for(int i = 0; i < LOOP; i++) {
       int index = rand() % BUFFER;
       if(buffer[index] != NULL) {
-      //  printf("freeing up %p\n",buffer[index]);
         dfree(buffer[index]);
-        printf("%d\n",printfAvgBlocksSize());
       }
       size_t size = (size_t)request();
       int *memory;
@@ -33,6 +34,7 @@ int main() {
         buffer[index] = memory;
         *memory = 42;
       }
+      printf("%d\n",avgBlocksSize());
     }
   }
   return 0;

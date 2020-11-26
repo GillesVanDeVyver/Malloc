@@ -3,4 +3,4 @@ void dfree ( void *memory );
 int lenghtFlist();
 void sanity();
 int printfBlocksSize();
-int printfAvgBlocksSize();
+int avgBlocksSize();

@@ -21,12 +21,12 @@ void main(){ //for testing
     ptr2 = (int*) dalloc(sizeof(int));
     *ptr2=9;
     printf("Stored %d at %p\n",*ptr2, ptr2);
-    sanity(0);
+    sanity(1);
     dfree(ptr2);
     printf("Freed %p\n",ptr2);
-    sanity(0);
+    sanity(1);
     dfree(ptr);
     printf("Freed %p\n",ptr);
-    sanity(2);
+    sanity(1);
     printf("lenghtFlist %d\n",lenghtFlist());
 }
