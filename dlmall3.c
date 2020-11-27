@@ -8,7 +8,7 @@
 #include <assert.h>
 
 
-#define MINSIZE 8
+#define MINSIZE 16
 #define TRUE 1
 #define FALSE 0
 #define HEAD ( sizeof ( struct head ) )
@@ -260,10 +260,12 @@ int avgBlocksSize(){
 }
 
 void detach ( struct head* block ) {
+
     if ( block->next != NULL){
         struct head *nextBlock = block->next;
         nextBlock->prev = block->prev;
     }
+
     if ( block->prev != NULL){
         struct head *prevBlock = block->prev;
         prevBlock->next = block->next;
@@ -275,51 +277,18 @@ void detach ( struct head* block ) {
     block->prev=NULL;
 }
 
-// void insert ( struct head *block ) {
-//     block->next = flist;
-//     block->prev = NULL;
-//     if ( flist!= NULL){
-//         struct head* firstBlock = flist;
-//         firstBlock->prev = block;
-//     }
-//     flist = block;
-// }
-
-void orderInsert(struct head *block){
-    if(flist== NULL){
-        flist = block;
-        block->next = NULL;
-        block->prev = NULL;
+void insert ( struct head *block ) {
+    block->next = flist;
+    block->prev = NULL;
+    if ( flist!= NULL){
+        struct head* firstBlock = flist;
+        firstBlock->prev = block;
     }
-    else{
-        struct head *temp = flist;
-        while((block->size < temp->size)){
-            if (temp->next !=NULL)
-                temp = temp->next;
-            else{ //block being inserted is largest block, temp is second largest
-                temp->next=block;
-                block->next = NULL;
-                block->prev = temp;
-                return;
-            }
-        }
-            if (temp->prev == NULL){
-                flist = block;
-            }
-            else{
-                struct head * tempPrev = temp->prev;
-                tempPrev->next = block;
-            }
-            block->prev = temp->prev;
-            temp->prev=block;
-        block->next = temp;
-
-    }
+    flist = block;
 }
 
 struct head *find (int size) {
     if (flist == NULL) { //If the freelist is empty, you need to create the arena (if not already created).
-        // printf("creating new flist\n");
         flist = new();
         if (flist==NULL){
             return NULL;
@@ -330,7 +299,7 @@ struct head *find (int size) {
         if (currBlock->size >size){
             if (currBlock->size-size>size+HEAD+8){
                 struct head *splt = split(currBlock,currBlock->size-size-HEAD);
-                orderInsert(splt);
+                insert(splt);
             }
             detach(currBlock);
             currBlock->free=FALSE;
@@ -362,11 +331,11 @@ void *dalloc ( size_t request ) {
         return NULL;
     }
     int size = adjust (request) ;
-    struct head *taken = find ( size ) ;
-    if ( taken == NULL)
+    struct head *takenBlock = find ( size ) ;
+    if ( takenBlock == NULL)
         return NULL;
     else
-        return HIDE(taken);
+        return HIDE(takenBlock);
 }
 
 // Merge more than two blocks can't be the case: already merged at that time
@@ -400,9 +369,8 @@ void dfree ( void *memory ) {
         mergedBlock->free = TRUE;
         struct head *aft = after(mergedBlock); //will never be null bcs of sentinel
         aft->bfree = TRUE;
-        orderInsert(mergedBlock);
+        // insert(mergedBlock);
     }
 return ;
 }
-
 

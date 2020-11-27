@@ -37,31 +37,14 @@ struct head *before ( struct head *block ) {
     return ( struct head* ) ((char*) block - block->bsize - HEAD) ;
 }
 
-// function does not insert the new splt block => should be done explicilty afterwards
-struct head *split ( struct head *block , int size ) {
-    int rsize = (block->size-size-HEAD);
-    block->size = rsize;
 
-    struct head *splt = after(block);
-    splt->bsize = rsize;
-    splt->bfree = block->free;
-    splt->size = size;
-    splt->free = block->free;
-
-    struct head *aft = after(splt);
-    aft->bsize = size;
-
-    return splt;
-}
 
 struct head *arena = NULL;
 struct head *new () {
     if ( arena != NULL) {
-        printf ("one arena already allocated \n");
+        // printf ("one arena already allocated \n");
         return NULL;
     }
-
-
     // using mmap, but could have used sbrk
     struct head *new = mmap(NULL, ARENA, 
                             PROT_READ | PROT_WRITE,
@@ -234,6 +217,27 @@ void sanity(int verbose){
     }
 }
 
+// function does not insert the new splt block => should be done explicilty afterwards
+struct head *split ( struct head *block , int size ) {
+    // sanity(1);
+
+    int rsize = (block->size-size-HEAD);
+    block->size = rsize;
+
+    struct head *splt = after(block);
+    splt->bsize = rsize;
+    splt->bfree = block->free;
+    splt->size = size;
+    splt->free = block->free;
+
+    struct head *aft = after(splt);
+    aft->bsize = size;
+
+
+    // sanity(1);
+    return splt;
+}
+
 int printfBlocksSize(){
     struct head *currBlock = flist;
     printf("printing the free blocks sizes\n");
@@ -245,6 +249,8 @@ int printfBlocksSize(){
 }
 
 int avgBlocksSize(){
+    // sanity(0);
+    // sanity(1);
     struct head *currBlock = flist;
     int sizeCount = 0;
     int count = 0;
@@ -260,10 +266,12 @@ int avgBlocksSize(){
 }
 
 void detach ( struct head* block ) {
+
     if ( block->next != NULL){
         struct head *nextBlock = block->next;
         nextBlock->prev = block->prev;
     }
+
     if ( block->prev != NULL){
         struct head *prevBlock = block->prev;
         prevBlock->next = block->next;
@@ -293,16 +301,11 @@ void orderInsert(struct head *block){
     }
     else{
         struct head *temp = flist;
-        while((block->size < temp->size)){
-            if (temp->next !=NULL)
-                temp = temp->next;
-            else{ //block being inserted is largest block, temp is second largest
-                temp->next=block;
-                block->next = NULL;
-                block->prev = temp;
-                return;
-            }
+        while((temp!=NULL) && (block->size > temp->size)){
+            temp = temp->next;
         }
+        if (temp!=NULL){
+            temp->prev=block;
             if (temp->prev == NULL){
                 flist = block;
             }
@@ -311,15 +314,15 @@ void orderInsert(struct head *block){
                 tempPrev->next = block;
             }
             block->prev = temp->prev;
-            temp->prev=block;
+        }
         block->next = temp;
+
 
     }
 }
 
 struct head *find (int size) {
     if (flist == NULL) { //If the freelist is empty, you need to create the arena (if not already created).
-        // printf("creating new flist\n");
         flist = new();
         if (flist==NULL){
             return NULL;
@@ -353,7 +356,6 @@ int adjust(int request){
         quotient++;
     if (quotient % 2 != 0) // even multiple of ALIGN, not sure with this is necessary
         quotient++;
-    //printf("adjusted request %d\n",(ALIGN*quotient));
     return ALIGN*quotient;
 }
 
@@ -372,24 +374,53 @@ void *dalloc ( size_t request ) {
 // Merge more than two blocks can't be the case: already merged at that time
 struct head *merge ( struct head *block ) {
     struct head * aft = after ( block ) ;
+    if (!(block->bfree)&&!(aft->free)){
+        orderInsert (block);
+        return block;
+    }
+    int beforeMergeHappened = 0;
     if ( block->bfree ) {
         struct head *bef = before ( block ) ;
-        detach(bef);
         int mergedSize = block->size + bef->size + HEAD;
         bef->size = mergedSize;
         aft->bsize= mergedSize;
         block = bef;
+        beforeMergeHappened = 1;
     }
     if ( aft->free ) { // after always exists bcs of sentinel
         struct head * aft2 = after ( aft ) ;
-        detach(aft);
         int mergedSize2 = block->size + aft->size + HEAD;
         block->size = mergedSize2;
         aft2->bsize=mergedSize2; // always exists bcs of sentinel
+        if (beforeMergeHappened)
+            detach(aft);
+        else{
+            block->next = aft->next;
+            block->prev = aft->prev;
+
+            if (aft->prev!=NULL){
+                struct head * prevBlock = aft->prev;
+                prevBlock->next=block;
+            }
+            else{
+                flist = block;
+            }
+            if (aft->next!=NULL){
+                struct head * nextBlock = aft->next;
+                nextBlock->prev=block;
+            }
+        }
     }
-    // printf("merged block %p",block);
     return block ;
 }
+
+    // uint16_t bfree ;
+    // uint16_t bsize ; 
+    // uint16_t free ;
+    // uint16_t size ;
+    // struct head *next ;
+    // struct head *prev ;
+
 
 
 void dfree ( void *memory ) {
@@ -400,7 +431,7 @@ void dfree ( void *memory ) {
         mergedBlock->free = TRUE;
         struct head *aft = after(mergedBlock); //will never be null bcs of sentinel
         aft->bfree = TRUE;
-        orderInsert(mergedBlock);
+        // insert(mergedBlock);
     }
 return ;
 }
